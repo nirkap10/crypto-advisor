@@ -5,14 +5,27 @@ import com.moveo.crypto_advisor.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class PreferencesService {
-
+    // Injected by Spring via constructor (thanks to @RequiredArgsConstructor)
     private final PreferencesRepository preferencesRepository;
     private final UserRepository userRepository;
+
+    /**
+     * Static options for onboarding selects.
+     */
+    public PreferencesOptionsResponse getOptions() {
+        return new PreferencesOptionsResponse(
+                // A few popular assets for convenience; client can still send any strings
+                List.of("bitcoin", "ethereum", "solana", "cardano", "dogecoin"),
+                List.of(InvestorTypeOption.values()),
+                List.of(ContentPreferenceOption.values())
+        );
+    }
 
     public PreferencesResponse saveForUser(String username, PreferencesRequest request) {
         User user = userRepository.findByUsername(username)
@@ -24,7 +37,7 @@ public class PreferencesService {
                     p.setUser(user);
                     return p;
                 });
-
+        // Copy data from request DTO into the entity
         prefs.setCryptoAssets(request.getCryptoAssets());
         prefs.setInvestorType(request.getInvestorType());
         prefs.setMarketNews(request.isMarketNews());
@@ -32,6 +45,7 @@ public class PreferencesService {
         prefs.setSocial(request.isSocial());
         prefs.setFun(request.isFun());
 
+        // Save to DB (insert or update) and then map to response DTO
         Preferences saved = preferencesRepository.save(prefs);
         return toResponse(saved);
     }

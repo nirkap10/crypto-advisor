@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.Optional;
 
 @RestController
@@ -13,14 +14,22 @@ public class PreferencesController {
 
     private final PreferencesService preferencesService;
 
+    /**
+     * Returns the allowed onboarding options (investor types, content categories, and example assets).
+     */
+    @GetMapping("/options")
+    public ResponseEntity<PreferencesOptionsResponse> options() {
+        return ResponseEntity.ok(preferencesService.getOptions());
+    }
+
     // GET /api/preferences/me?username=someUser
     @GetMapping("/me")
-    public ResponseEntity<PreferencesResponse> getMyPreferences(
-            @RequestParam String username
-    ) {
+    // Username now taken from authenticated principal (Basic auth)
+    public ResponseEntity<PreferencesResponse> getMyPreferences(Principal principal) {
         Optional<PreferencesResponse> prefs =
-                preferencesService.getForUser(username);
+                preferencesService.getForUser(principal.getName());
 
+        // if prefs is not found, return 204 No Content
         return prefs
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.noContent().build());
@@ -29,11 +38,13 @@ public class PreferencesController {
     // POST /api/preferences/me?username=someUser
     @PostMapping("/me")
     public ResponseEntity<PreferencesResponse> saveMyPreferences(
-            @RequestParam String username,
+            // Authenticated principal provides username (Basic auth)
+            Principal principal,
+            // @RequestBody = spring parse down the json into the request object
             @RequestBody PreferencesRequest request
     ) {
         PreferencesResponse response =
-                preferencesService.saveForUser(username, request);
+                preferencesService.saveForUser(principal.getName(), request);
 
         return ResponseEntity.ok(response);
     }
