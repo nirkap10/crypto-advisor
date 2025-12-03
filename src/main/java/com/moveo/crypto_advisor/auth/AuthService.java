@@ -1,5 +1,6 @@
 package com.moveo.crypto_advisor.auth;
 
+import com.moveo.crypto_advisor.preferences.PreferencesService;
 import com.moveo.crypto_advisor.user.User;
 import com.moveo.crypto_advisor.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final PreferencesService preferencesService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public AuthResponse register(RegisterRequest request) {
@@ -27,6 +29,7 @@ public class AuthService {
 
         AuthResponse response = new AuthResponse();
         response.setMessage("User registered successfully");
+        response.setOnboardingCompleted(false);
         return response;
     }
 
@@ -38,8 +41,11 @@ public class AuthService {
             throw new RuntimeException("Invalid credentials");
         }
 
+        boolean completed = preferencesService.hasCompletedOnboarding(user.getUsername());
+
         AuthResponse response = new AuthResponse();
         response.setMessage("Login successful");
+        response.setOnboardingCompleted(completed);
         return response;
     }
 }
