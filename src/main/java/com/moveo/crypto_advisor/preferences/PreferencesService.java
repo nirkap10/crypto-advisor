@@ -20,8 +20,8 @@ public class PreferencesService {
      */
     public PreferencesOptionsResponse getOptions() {
         return new PreferencesOptionsResponse(
-                // A few popular assets for convenience; client can still send any strings
-                List.of("bitcoin", "ethereum", "solana", "cardano", "dogecoin"),
+                // Onboarding choices (tickers)
+                List.of("BTC", "ETH", "USDT", "USDC", "BNB", "XRP", "SOL", "DOT", "ADA", "DOGE"),
                 List.of(InvestorTypeOption.values()),
                 List.of(ContentPreferenceOption.values())
         );

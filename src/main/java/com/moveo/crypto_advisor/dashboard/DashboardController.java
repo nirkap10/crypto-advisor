@@ -36,7 +36,7 @@ public class DashboardController {
             @PathVariable Long snapshotId,
             @RequestBody DashboardFeedbackRequest request
     ) {
-        DashboardFeedbackResponse response = dashboardService.vote(snapshotId, request.getSection(), request.getVote());
+        DashboardFeedbackResponse response = dashboardService.vote(snapshotId, request.getSection(), request.getVote(), request.getContentId());
         return ResponseEntity.ok(response);
     }
 }

@@ -9,4 +9,5 @@ import lombok.Data;
 public class DashboardFeedbackRequest {
     private DashboardSection section;
     private int vote; // -1, 0, or 1
+    private Long contentId;
 }

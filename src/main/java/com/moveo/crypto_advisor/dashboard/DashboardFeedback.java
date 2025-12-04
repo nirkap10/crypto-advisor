@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.Instant;
+import com.moveo.crypto_advisor.content.Content;
 
 /**
  * Records user feedback (thumbs) for a specific section of a snapshot.
@@ -23,6 +24,10 @@ public class DashboardFeedback {
     @ManyToOne
     @JoinColumn(name = "snapshot_id")
     private DashboardSnapshot snapshot;
+
+    @ManyToOne
+    @JoinColumn(name = "content_id")
+    private Content content;
 
     // Section being voted on
     @Enumerated(EnumType.STRING)

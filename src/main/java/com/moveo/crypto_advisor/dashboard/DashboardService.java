@@ -2,10 +2,10 @@ package com.moveo.crypto_advisor.dashboard;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.moveo.crypto_advisor.integrations.CoinGeckoService;
-import com.moveo.crypto_advisor.integrations.CryptoPanicService;
-import com.moveo.crypto_advisor.integrations.AIInsightService;
-import com.moveo.crypto_advisor.integrations.MemeService;
+import com.moveo.crypto_advisor.content.Content;
+import com.moveo.crypto_advisor.content.ContentRepository;
+import com.moveo.crypto_advisor.content.ContentType;
+import com.moveo.crypto_advisor.integrations.AssetIdResolver;
 import com.moveo.crypto_advisor.preferences.PreferencesResponse;
 import com.moveo.crypto_advisor.preferences.PreferencesService;
 import com.moveo.crypto_advisor.user.User;
@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.*;
 
 /**
@@ -28,10 +29,8 @@ public class DashboardService {
     private final DashboardFeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
     private final PreferencesService preferencesService;
-    private final CryptoPanicService cryptoPanicService;
-    private final CoinGeckoService coinGeckoService;
-    private final AIInsightService aiInsightService;
-    private final MemeService memeService;
+    private final AssetIdResolver assetIdResolver;
+    private final ContentRepository contentRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -67,7 +66,7 @@ public class DashboardService {
     /**
      * Record a vote for a snapshot section. Keeps history by inserting a new feedback row.
      */
-    public DashboardFeedbackResponse vote(Long snapshotId, DashboardSection section, int vote) {
+    public DashboardFeedbackResponse vote(Long snapshotId, DashboardSection section, int vote, Long contentId) {
         if (vote < -1 || vote > 1) {
             throw new IllegalArgumentException("Vote must be -1, 0, or 1");
         }
@@ -75,14 +74,22 @@ public class DashboardService {
         DashboardSnapshot snapshot = snapshotRepository.findById(snapshotId)
                 .orElseThrow(() -> new RuntimeException("Snapshot not found: " + snapshotId));
 
+        Content content = null;
+        if (contentId != null) {
+            content = contentRepository.findById(contentId)
+                    .orElseThrow(() -> new RuntimeException("Content not found: " + contentId));
+        }
+
         DashboardFeedback feedback = new DashboardFeedback();
         feedback.setSnapshot(snapshot);
+        feedback.setContent(content);
         feedback.setSection(section);
         feedback.setVote(vote);
         feedback.setCreatedAt(Instant.now());
 
         DashboardFeedback saved = feedbackRepository.save(feedback);
-        return new DashboardFeedbackResponse(saved.getId(), saved.getSnapshot().getId(), saved.getSection(), saved.getVote(), saved.getCreatedAt());
+        Long savedContentId = saved.getContent() != null ? saved.getContent().getId() : null;
+        return new DashboardFeedbackResponse(saved.getId(), saved.getSnapshot().getId(), savedContentId, saved.getSection(), saved.getVote(), saved.getCreatedAt());
     }
 
     // Create a new snapshot using preferences and current external data.
@@ -100,17 +107,47 @@ public class DashboardService {
     private void populateSnapshotContent(DashboardSnapshot snapshot, PreferencesResponse prefs) {
         List<String> assets = Optional.ofNullable(prefs.getCryptoAssets())
                 .filter(list -> !list.isEmpty())
-                .orElse(List.of("bitcoin", "ethereum"));
+                .map(this::toCoinGeckoIds)
+                .filter(list -> !list.isEmpty())
+                .orElseGet(assetIdResolver::getSupportedCoinGeckoIds);
 
-        Map<String, Object> news = cryptoPanicService.fetchLatest(Optional.empty());
-        Map<String, Object> prices = coinGeckoService.fetchSimplePrices(assets, "usd");
-        Map<String, Object> aiInsight = aiInsightService.generateInsight(prefs);
-        Map<String, Object> meme = memeService.getMeme();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        Map<String, Object> newsByAsset = new LinkedHashMap<>();
+        Map<String, Object> pricesByAsset = new LinkedHashMap<>();
+        Map<String, Object> memesByAsset = new LinkedHashMap<>();
+        Map<String, Object> aiByAsset = new LinkedHashMap<>();
+        Map<String, Object> sharedNewsFallback = new LinkedHashMap<>();
 
-        snapshot.setMarketNewsJson(writeJson(news));
-        snapshot.setCoinPricesJson(writeJson(prices));
-        snapshot.setAiInsightJson(writeJson(aiInsight));
-        snapshot.setMemeJson(writeJson(meme));
+        for (String asset : assets) {
+            latestForToday(ContentType.NEWS, asset, today)
+                    .ifPresent(c -> newsByAsset.put(asset, withContentId(c)));
+            latestForToday(ContentType.PRICE, asset, today)
+                    .ifPresent(c -> pricesByAsset.put(asset, withContentId(c)));
+            latestForToday(ContentType.MEME, asset, today)
+                    .ifPresent(c -> memesByAsset.put(asset, withContentId(c)));
+            latestForToday(ContentType.AI_INSIGHT, asset, today)
+                    .ifPresent(c -> aiByAsset.put(asset, withContentId(c)));
+        }
+
+        // If a coin has no news for today, fall back to the latest news for any coin.
+        if (newsByAsset.isEmpty()) {
+            latestAny(ContentType.NEWS).ifPresent(c -> {
+                Object wrapped = withContentId(c);
+                assets.forEach(asset -> sharedNewsFallback.put(asset, wrapped));
+            });
+        } else {
+            latestAny(ContentType.NEWS).ifPresent(c -> sharedNewsFallback.put("fallback", withContentId(c)));
+        }
+        for (String asset : assets) {
+            if (!newsByAsset.containsKey(asset) && !sharedNewsFallback.isEmpty()) {
+                newsByAsset.put(asset, sharedNewsFallback.values().iterator().next());
+            }
+        }
+
+        snapshot.setMarketNewsJson(writeJson(newsByAsset));
+        snapshot.setCoinPricesJson(writeJson(pricesByAsset));
+        snapshot.setAiInsightJson(writeJson(aiByAsset));
+        snapshot.setMemeJson(writeJson(memesByAsset));
     }
 
     // Map entity to response, parsing JSON blobs.
@@ -155,5 +192,31 @@ public class DashboardService {
         } catch (Exception e) {
             return Map.of("error", "Failed to parse stored content");
         }
+    }
+
+    // Translate user-selected tickers to CoinGecko ids, dropping unknowns.
+    private List<String> toCoinGeckoIds(List<String> tickers) {
+        return tickers.stream()
+                .map(assetIdResolver::toCoinGeckoId)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private Optional<Content> latestForToday(ContentType type, String assetId, LocalDate today) {
+        return contentRepository.findTopByTypeAndCryptoAssetOrderByTimestampDesc(type, assetId)
+                .filter(content -> content.getTimestamp() != null &&
+                        content.getTimestamp().atZone(ZoneOffset.UTC).toLocalDate().equals(today));
+    }
+
+    private Optional<Content> latestAny(ContentType type) {
+        return contentRepository.findTopByTypeOrderByTimestampDesc(type);
+    }
+
+    private Map<String, Object> withContentId(Content content) {
+        Map<String, Object> data = readJson(content.getContent());
+        Map<String, Object> wrapped = new LinkedHashMap<>();
+        wrapped.put("contentId", content.getId());
+        wrapped.put("data", data);
+        return wrapped;
     }
 }

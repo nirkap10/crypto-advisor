@@ -13,6 +13,7 @@ import java.time.Instant;
 public class DashboardFeedbackResponse {
     private Long id;
     private Long snapshotId;
+    private Long contentId;
     private DashboardSection section;
     private int vote;
     private Instant createdAt;
