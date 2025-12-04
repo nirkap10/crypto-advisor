@@ -1,0 +1,163 @@
+:root {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: #e8edf2;
+  background-color: #0d1117;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+}
+
+header h1 {
+  margin: 0 0 6px;
+  font-weight: 700;
+}
+
+.muted {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.panel {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 18px;
+  margin-top: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #cbd5e1;
+}
+
+input,
+select,
+button {
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: #0b1623;
+  color: #e8edf2;
+  padding: 10px 12px;
+  font-size: 1rem;
+}
+
+button {
+  cursor: pointer;
+  transition: transform 0.06s ease, background 0.2s ease;
+}
+
+button:hover {
+  background: #152337;
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.chip {
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: #0f172a;
+  border: 1px solid #1f2937;
+}
+
+.chip.active {
+  background: #1d4ed8;
+  border-color: #3b82f6;
+}
+
+.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 12px;
+  background: #0f172a;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.item {
+  border-top: 1px solid #1f2937;
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.blob {
+  background: #0b1220;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 10px;
+  max-height: 200px;
+  overflow: auto;
+  font-size: 0.9rem;
+}
+
+.vote-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.status {
+  color: #22c55e;
+}
+
+.error {
+  color: #f87171;
+}
