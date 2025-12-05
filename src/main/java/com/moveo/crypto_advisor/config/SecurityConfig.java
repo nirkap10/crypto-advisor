@@ -60,15 +60,22 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Allow any origin pattern so we can still return a concrete origin with credentials
-        config.addAllowedOriginPattern("*");
-        config.addAllowedHeader("*");
-        config.addAllowedMethod("*");
+    
+        config.setAllowedOrigins(
+                java.util.List.of(
+                        "https://crypto-advisor-gold.vercel.app",
+                        "http://localhost:3000"
+                )
+        );
+    
+        config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(java.util.List.of("*"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
-
+    
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
     }
+    
 }
