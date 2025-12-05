@@ -64,7 +64,7 @@ public class SecurityConfig {
         config.setAllowedOrigins(
                 java.util.List.of(
                         "https://crypto-advisor-gold.vercel.app",
-                        "http://localhost:3000"
+                        "http://localhost:5173"
                 )
         );
     
