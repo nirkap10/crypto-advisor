@@ -30,7 +30,7 @@ export const api = {
   getPreferenceOptions: () => apiFetch('/api/preferences/options'),
   getPreferences: (auth) => apiFetch('/api/preferences/me', { auth }),
   savePreferences: (auth, payload) => apiFetch('/api/preferences/me', { auth, method: 'POST', body: payload }),
-  dashboardToday: (auth) => apiFetch('/api/dashboard/today', { auth }),
+  dashboardToday: (auth, refresh = true) => apiFetch(`/api/dashboard/today?refresh=${refresh}`, { auth }),
   vote: (auth, snapshotId, payload) =>
     apiFetch(`/api/dashboard/${snapshotId}/feedback`, { auth, method: 'POST', body: payload }),
 };

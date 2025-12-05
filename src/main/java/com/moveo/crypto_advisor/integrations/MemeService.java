@@ -8,11 +8,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Supplies a meme payload, preferring Reddit (r/cryptomemes) and falling back to a static list.
@@ -21,15 +21,17 @@ import java.util.concurrent.ThreadLocalRandom;
 public class MemeService {
 
     private static final String REDDIT_URL = "https://www.reddit.com/r/cryptomemes/top.json?limit=50&t=day";
+    private static final String MEME_API_URL = "https://meme-api.com/gimme/cryptomemes";
 
     private final RestTemplate restTemplate;
 
+    // Simple text-based fallbacks (SVG data URIs) to avoid broken external links.
     private final List<Map<String, String>> fallbackMemes = List.of(
-            Map.of("title", "HODL vibes", "url", "https://i.imgur.com/0v6jJ7f.jpeg"),
-            Map.of("title", "When the dip dips", "url", "https://i.imgur.com/1J8Zq0K.jpeg"),
-            Map.of("title", "Charts at 3am", "url", "https://i.imgur.com/Us0TJzQ.jpeg"),
-            Map.of("title", "Bear to Bull", "url", "https://i.imgur.com/2kDOsmN.png"),
-            Map.of("title", "GM, anon", "url", "https://i.imgur.com/LrXoQ0k.jpeg")
+            Map.of("title", "HODL vibes", "url", "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='480'><rect width='100%' height='100%' fill='%232563eb'/><text x='50%' y='50%' fill='white' font-size='48' font-family='Segoe UI, Arial' text-anchor='middle'>HODL vibes</text></svg>"),
+            Map.of("title", "Charts at 3am", "url", "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='480'><rect width='100%' height='100%' fill='%230f172a'/><text x='50%' y='50%' fill='%23e2e8f0' font-size='44' font-family='Segoe UI, Arial' text-anchor='middle'>Charts at 3am</text></svg>"),
+            Map.of("title", "Buy the dip?", "url", "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='480'><rect width='100%' height='100%' fill='%23f59e0b'/><text x='50%' y='50%' fill='%230b1b3d' font-size='44' font-family='Segoe UI, Arial' text-anchor='middle'>Buy the dip?</text></svg>"),
+            Map.of("title", "gm frens", "url", "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='480'><rect width='100%' height='100%' fill='%23f8fafc'/><text x='50%' y='50%' fill='%230f172a' font-size='44' font-family='Segoe UI, Arial' text-anchor='middle'>gm frens</text></svg>"),
+            Map.of("title", "Bear to Bull", "url", "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='480'><rect width='100%' height='100%' fill='%2316a34a'/><text x='50%' y='50%' fill='white' font-size='44' font-family='Segoe UI, Arial' text-anchor='middle'>Bear to Bull</text></svg>")
     );
 
     public MemeService(RestTemplate restTemplate) {
@@ -37,8 +39,38 @@ public class MemeService {
     }
 
     public Map<String, Object> getMeme() {
-        return fetchFromReddit()
+        return fetchFromMemeApi()
+                .or(() -> fetchFromReddit())
                 .orElseGet(this::randomFallback);
+    }
+
+    private Optional<Map<String, Object>> fetchFromMemeApi() {
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    MEME_API_URL,
+                    HttpMethod.GET,
+                    null,
+                    Map.class
+            );
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                return Optional.empty();
+            }
+            //noinspection unchecked
+            Map<String, Object> body = response.getBody();
+            Object url = body.get("url");
+            Object title = body.get("title");
+            if (url instanceof String u && isImageUrl(u)) {
+                return Optional.of(Map.of(
+                        "title", title != null ? title.toString() : "Meme",
+                        "url", u,
+                        "servedAt", LocalDateTime.now().toString(),
+                        "source", "meme-api"
+                ));
+            }
+        } catch (RestClientException ignored) {
+            // fall back
+        }
+        return Optional.empty();
     }
 
     private Optional<Map<String, Object>> fetchFromReddit() {
@@ -88,7 +120,8 @@ public class MemeService {
     }
 
     private Map<String, Object> randomFallback() {
-        int idx = ThreadLocalRandom.current().nextInt(fallbackMemes.size());
+        int day = LocalDate.now().getDayOfYear();
+        int idx = day % fallbackMemes.size();
         Map<String, String> pick = fallbackMemes.get(idx);
         return Map.of(
                 "title", pick.get("title"),

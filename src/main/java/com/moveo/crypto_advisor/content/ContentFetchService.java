@@ -66,19 +66,18 @@ public class ContentFetchService {
         Map<String, Object> prices = coinGeckoService.fetchSimplePrices(coinGeckoIds, "usd");
         Map<String, Object> news = cryptoPanicService.fetchLatest(Optional.empty());
         Map<String, Object> meme = memeService.getMeme();
-
         for (String assetId : coinGeckoIds) {
             Object pricePayload = prices.get(assetId);
             persistIfMissing(ContentType.PRICE, assetId, pricePayload, now, startOfDayUtc);
             persistIfMissing(ContentType.NEWS, assetId, news, now, startOfDayUtc);
             persistIfMissing(ContentType.MEME, assetId, meme, now, startOfDayUtc);
 
-            Map<String, Object> context = Map.of(
+            Map<String, Object> aiContext = Map.of(
                     "price", pricePayload,
                     "news", news,
                     "meme", meme
             );
-            Map<String, Object> aiInsight = aiInsightService.generateInsightForAsset(assetId, context);
+            Map<String, Object> aiInsight = aiInsightService.generateInsightForAsset(assetId, aiContext);
             persistIfMissing(ContentType.AI_INSIGHT, assetId, aiInsight, now, startOfDayUtc);
         }
     }
@@ -94,6 +93,31 @@ public class ContentFetchService {
         }
 
         boolean existsToday = contentRepository.existsByTypeAndCryptoAssetAndTimestampAfter(type, assetId, startOfDayUtc);
+
+        // Allow replacing today's MEME if the stored one is a fallback and we have a new candidate.
+        if (existsToday && type == ContentType.MEME) {
+            contentRepository.findTopByTypeAndCryptoAssetOrderByTimestampDesc(type, assetId)
+                    .ifPresent(existing -> {
+                        if (isFallbackMeme(existing.getContent()) && isValidMemePayload(payload)) {
+                            existing.setContent(writeJson(payload));
+                            existing.setTimestamp(timestamp);
+                            contentRepository.save(existing);
+                        }
+                    });
+            return;
+        }
+
+        // Always replace today's AI insight with the latest generated content.
+        if (existsToday && type == ContentType.AI_INSIGHT) {
+            contentRepository.findTopByTypeAndCryptoAssetOrderByTimestampDesc(type, assetId)
+                    .ifPresent(existing -> {
+                        existing.setContent(writeJson(payload));
+                        existing.setTimestamp(timestamp);
+                        contentRepository.save(existing);
+                    });
+            return;
+        }
+
         if (existsToday) {
             return;
         }
@@ -104,6 +128,26 @@ public class ContentFetchService {
         content.setContent(writeJson(payload));
         content.setTimestamp(timestamp);
         contentRepository.save(content);
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean isFallbackMeme(String contentJson) {
+        try {
+            Map<String, Object> data = objectMapper.readValue(contentJson, Map.class);
+            Object source = data.get("source");
+            Object url = data.get("url");
+            return "fallback".equals(source) || (url instanceof String u && u.startsWith("data:image/svg"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean isValidMemePayload(Object payload) {
+        if (payload instanceof Map<?, ?> map) {
+            Object url = map.get("url");
+            return url != null && url.toString().length() > 5;
+        }
+        return false;
     }
 
     private String writeJson(Object value) {

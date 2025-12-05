@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moveo.crypto_advisor.content.Content;
 import com.moveo.crypto_advisor.content.ContentRepository;
 import com.moveo.crypto_advisor.content.ContentType;
+import com.moveo.crypto_advisor.content.ContentFetchService;
 import com.moveo.crypto_advisor.integrations.AssetIdResolver;
 import com.moveo.crypto_advisor.preferences.PreferencesResponse;
 import com.moveo.crypto_advisor.preferences.PreferencesService;
@@ -32,6 +33,7 @@ public class DashboardService {
     private final AssetIdResolver assetIdResolver;
     private final ContentRepository contentRepository;
     private final ObjectMapper objectMapper;
+    private final ContentFetchService contentFetchService;
 
     /**
      * Retrieve today's snapshot for the user, creating one if missing.
@@ -50,6 +52,11 @@ public class DashboardService {
         LocalDate today = LocalDate.now();
         PreferencesResponse prefs = preferencesService.getForUser(user.getUsername())
                 .orElseGet(PreferencesResponse::new);
+
+        // If explicit refresh requested, refresh the shared daily content first (news/prices/memes/AI).
+        if (refresh) {
+            contentFetchService.refreshDailyContent();
+        }
 
         DashboardSnapshot snapshot = snapshotRepository
                 .findByUserAndSnapshotDate(user, today)
